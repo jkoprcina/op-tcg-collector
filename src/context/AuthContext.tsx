@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, SUPABASE_AUTH_STORAGE_KEY } from '../lib/supabase';
 
 type User = {
   id: string;
@@ -25,7 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const {
           data: { session },
+          error,
         } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Failed to restore session:', error);
+          await supabase.auth.signOut();
+          await AsyncStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+          setUser(null);
+          return;
+        }
 
         if (session?.user) {
           setUser({
@@ -35,6 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('Failed to restore session:', err);
+        await supabase.auth.signOut();
+        await AsyncStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
       }
       setLoading(false);
     })();
@@ -42,7 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Subscribe to auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'TOKEN_REFRESH_FAILED') {
+        await supabase.auth.signOut();
+        await AsyncStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY);
+        setUser(null);
+        return;
+      }
+
       if (session?.user) {
         setUser({
           id: session.user.id,
@@ -90,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // If session is immediately available, user is logged in (email confirmation disabled)
     if (data?.session) {
-      console.log('User registered and logged in immediately');
+      // Session available immediately (email confirmation disabled)
     }
   };
 

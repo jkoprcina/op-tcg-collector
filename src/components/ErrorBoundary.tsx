@@ -30,6 +30,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       const theme = getTheme('light'); // Use light theme for error boundary
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <Text style={styles.emoji}>⚠️</Text>
           <Text style={[styles.title, { color: theme.colors.text }]}>Something went wrong</Text>
           <Text style={[styles.message, { color: theme.colors.mutedText }]}>{this.state.error?.message || 'Unknown error'}</Text>
         </View>
@@ -51,6 +52,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 14,
+  },
+  emoji: {
+    fontSize: 36,
+    marginBottom: 10,
   },
   message: {
     fontSize: 16,

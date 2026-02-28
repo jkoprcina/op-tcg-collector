@@ -6,6 +6,7 @@ export type SetSummary = {
 export type Card = {
   inventory_price: number | null;
   market_price: number | null;
+  cardmarket_price: number | null;
   card_name: string;
   set_name: string;
   set_id: string; // e.g., OP-01
@@ -23,4 +24,7 @@ export type Card = {
   card_image_id: string;
   card_image: string; // URL
   card_text?: string | null; // Optional: present in detailed card data
+  collected_count?: number;
+  collection_card_id?: string;
+  binder_position?: number;
 };

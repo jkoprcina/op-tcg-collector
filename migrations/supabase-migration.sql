@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS cards (
   card_trigger TEXT,
   card_image TEXT,
   market_price DECIMAL(10,2),
+  cardmarket_price DECIMAL(10,2),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   FOREIGN KEY (card_set_id) REFERENCES sets(id) ON DELETE CASCADE

@@ -12,8 +12,11 @@ import { useAuth } from '../context/AuthContext';
 import { CollectionsScreen } from '../screens/CollectionsScreen';
 import { CollectionDetailScreen } from '../screens/CollectionDetailScreen';
 import { AddToCollectionScreen } from '../screens/AddToCollectionScreen';
+import { WishlistScreen } from '../screens/WishlistScreen';
 
 export type RootStackParamList = {
+  login: undefined;
+  register: undefined;
   Login: undefined;
   Register: undefined;
   Home: undefined;
@@ -24,6 +27,7 @@ export type RootStackParamList = {
   CollectionDetail: { collectionId: string };
   AddToCollection: { card: import('../types').Card };
   Settings: undefined;
+  Wishlist: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -35,34 +39,34 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
         {!user ? (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="login" component={LoginScreen} />
+            <Stack.Screen name="register" component={RegisterScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
           <>
-            <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Home' }} />
-            <Stack.Screen name="Sets" component={SetsScreen} options={{ title: 'Browse Sets' }} />
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Sets" component={SetsScreen} />
             <Stack.Screen
               name="SetDetail"
               component={SetDetailScreen}
-              options={({ route }) => ({ title: route.params.setName })}
             />
-            <Stack.Screen name="MyCollection" component={MyCollectionScreen} options={{ title: 'My Collection' }} />
-            <Stack.Screen name="Collections" component={CollectionsScreen} options={{ title: 'Collections' }} />
+            <Stack.Screen name="MyCollection" component={MyCollectionScreen} />
+            <Stack.Screen name="Collections" component={CollectionsScreen} />
             <Stack.Screen
               name="CollectionDetail"
               component={CollectionDetailScreen}
-              options={{ title: 'Collection' }}
             />
             <Stack.Screen
               name="AddToCollection"
               component={AddToCollectionScreen}
-              options={{ title: 'Add to Collection' }}
             />
-            <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+            <Stack.Screen name="Wishlist" component={WishlistScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
           </>
         )}
       </Stack.Navigator>

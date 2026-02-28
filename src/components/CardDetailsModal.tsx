@@ -5,6 +5,10 @@ import type { Card } from '../types';
 import { useCollectedCards } from '../hooks/useCollectedCards';
 import { getTheme } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { useSettings } from '../context/SettingsContext';
+import { getRarityKeyForCard, isAlternateArtCard } from '../context/CardFilterContext';
+import { trackRecentlyViewedCard } from '../utils/recentlyViewed';
+import { formatPrice } from '../utils/price';
 
 type Props = {
   card: Card | null;
@@ -15,11 +19,24 @@ type Props = {
 export function CardDetailsModal({ card, visible, onClose }: Props) {
   const { mode } = useTheme();
   const theme = getTheme(mode);
+  const { currency } = useSettings();
   const { getCount, increment, decrement } = useCollectedCards();
+
+  React.useEffect(() => {
+    if (visible && card) {
+      trackRecentlyViewedCard(card);
+    }
+  }, [visible, card]);
 
   if (!card) return null;
 
   const count = getCount(card.card_image_id);
+  const isAlt = isAlternateArtCard(card);
+  const rarityKey = getRarityKeyForCard(card);
+  const priceValue = card.market_price;
+  const priceText = formatPrice(priceValue, currency, 'N/A');
+  const inventoryValue = card.inventory_price;
+  const inventoryText = formatPrice(inventoryValue, currency, 'N/A');
 
   const shareCard = async () => {
     try {
@@ -35,14 +52,14 @@ export function CardDetailsModal({ card, visible, onClose }: Props) {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={[styles.container, { backgroundColor: 'rgba(0, 0, 0, 0.65)' }]}>
         <ScrollView style={[styles.content, { backgroundColor: theme.colors.surface }]}>
-          {/* Close Button */}
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <Text style={[styles.closeBtnText, { color: theme.colors.mutedText }]}>✕ Close</Text>
-          </TouchableOpacity>
-          {/* Share Button */}
-          <TouchableOpacity style={styles.shareBtn} onPress={shareCard}>
-            <Text style={[styles.shareBtnText, { color: theme.colors.primary }]}>Share</Text>
-          </TouchableOpacity>
+          <View style={styles.headerRow}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <Text style={[styles.closeBtnText, { color: theme.colors.mutedText }]}>✕ Close</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shareBtn} onPress={shareCard}>
+              <Text style={[styles.shareBtnText, { color: theme.colors.primary }]}>Share</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Card Image */}
           <Image
@@ -56,6 +73,27 @@ export function CardDetailsModal({ card, visible, onClose }: Props) {
           <View style={styles.infoSection}>
             <Text style={[styles.cardName, { color: theme.colors.text }]}>{card.card_name}</Text>
             <Text style={[styles.setName, { color: theme.colors.mutedText }]}>{card.set_name}</Text>
+
+            <View style={styles.badgeRow}>
+              <View style={[styles.badgePill, { backgroundColor: theme.colors.chip, borderColor: theme.colors.border }]}>
+                <Text style={[styles.badgeText, { color: theme.colors.text }]}>{rarityKey}</Text>
+              </View>
+              {card.card_type && (
+                <View style={[styles.badgePill, { backgroundColor: theme.colors.chip, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.badgeText, { color: theme.colors.text }]}>{card.card_type}</Text>
+                </View>
+              )}
+              {isAlt && (
+                <View style={[styles.badgePill, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}>
+                  <Text style={[styles.badgeText, { color: '#fff' }]}>ALT ART</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.priceRow, { backgroundColor: theme.colors.chip, borderColor: theme.colors.border }]}>
+              <Text style={[styles.priceLabel, { color: theme.colors.mutedText }]}>Market</Text>
+              <Text style={[styles.priceValue, { color: theme.colors.text }]}>{priceText}</Text>
+            </View>
 
             {/* Count Controls */}
             <View style={styles.counterRow}>
@@ -71,7 +109,7 @@ export function CardDetailsModal({ card, visible, onClose }: Props) {
               </View>
               <TouchableOpacity
                 style={[styles.counterBtn, styles.plusBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={() => increment(card.card_image_id)}
+                onPress={() => increment(card.card_image_id, card)}
               >
                 <Text style={[styles.counterText, { color: theme.colors.text }]}>+</Text>
               </TouchableOpacity>
@@ -126,15 +164,11 @@ export function CardDetailsModal({ card, visible, onClose }: Props) {
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Pricing</Text>
               <View style={styles.priceRow}>
                 <Text style={[styles.priceLabel, { color: theme.colors.mutedText }]}>Market Price:</Text>
-                <Text style={[styles.priceValue, { color: theme.colors.text }]}>
-                  ${card.market_price?.toFixed(2) || 'N/A'}
-                </Text>
+                <Text style={[styles.priceValue, { color: theme.colors.text }]}>{priceText}</Text>
               </View>
               <View style={styles.priceRow}>
                 <Text style={[styles.priceLabel, { color: theme.colors.mutedText }]}>Inventory Price:</Text>
-                <Text style={[styles.priceValue, { color: theme.colors.text }]}>
-                  ${card.inventory_price?.toFixed(2) || 'N/A'}
-                </Text>
+                <Text style={[styles.priceValue, { color: theme.colors.text }]}>{inventoryText}</Text>
               </View>
             </View>
           </View>
@@ -154,16 +188,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   closeBtn: {
-    alignSelf: 'flex-end',
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   shareBtn: {
-    alignSelf: 'flex-end',
     paddingHorizontal: 20,
-    paddingVertical: 6,
-    marginTop: -8,
+    paddingVertical: 12,
   },
   shareBtnText: {
     fontSize: 14,
@@ -181,6 +217,43 @@ const styles = StyleSheet.create({
   infoSection: {
     paddingHorizontal: 20,
     paddingBottom: 30,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  badgePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  priceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  priceValue: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  priceTrend: {
+    fontSize: 11,
   },
   cardName: {
     fontSize: 22,
@@ -230,19 +303,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 14,
     borderRadius: 12,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  priceLabel: {
-    fontSize: 14,
-  },
-  priceValue: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   counterRow: {
     flexDirection: 'row',

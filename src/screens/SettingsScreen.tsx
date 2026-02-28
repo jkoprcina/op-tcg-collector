@@ -1,46 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, Switch } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useToast } from '../components';
+import { useSettings } from '../context/SettingsContext';
+import { ScreenHeader, useToast } from '../components';
 import { getTheme } from '../theme';
+import { useCardFilters, RARITY_OPTIONS } from '../context/CardFilterContext';
+import { readSetsCache } from '../api/optcg';
 import type { RootStackParamList } from '../navigation';
 
 export type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
-const RARITIES = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Secret Rare', 'Leader', 'Special', 'Alternative Art', 'None'];
-const STORAGE_KEY = 'collection_thresholds';
-
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { user, logout } = useAuth();
   const { mode, toggleTheme } = useTheme();
+  const { currency, setCurrency } = useSettings();
+  const { enabledRarities, setRarityEnabled, setAll, thresholds: storedThresholds, updateThresholds } = useCardFilters();
   const toast = useToast();
   const [thresholdsVisible, setThresholdsVisible] = useState(false);
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const theme = getTheme(mode);
 
   useEffect(() => {
+    setThresholds(storedThresholds);
+  }, [storedThresholds]);
+
+  useEffect(() => {
     (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          setThresholds(JSON.parse(raw));
-        } else {
-          // Default: 1 card needed to count as collected
-          const defaults: Record<string, number> = {};
-          RARITIES.forEach(r => defaults[r] = 1);
-          setThresholds(defaults);
-        }
-      } catch {}
+      const cached = await readSetsCache();
+      setLastSync(cached?.updatedAt || null);
     })();
   }, []);
 
   const saveThresholds = async () => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(thresholds));
+      updateThresholds(thresholds);
       toast.show('Collection thresholds saved', 'success');
       setThresholdsVisible(false);
     } catch {
@@ -66,12 +63,21 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>Settings</Text>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      contentContainerStyle={styles.contentContainer}
+    >
+      <ScreenHeader title="Settings" />
       
       <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <Text style={[styles.label, { color: theme.colors.mutedText }]}>Signed in as</Text>
         <Text style={[styles.value, { color: theme.colors.text }]}>{user?.email}</Text>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+      >
+        <Text style={[styles.label, { color: theme.colors.mutedText }]}>Backup & Sync</Text>
+        <Text style={[styles.value, { color: theme.colors.text }]}>Last sync: {lastSync ? new Date(lastSync).toLocaleString() : 'Not synced yet'}</Text>
       </View>
 
       <TouchableOpacity 
@@ -93,13 +99,74 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.actionBtn, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} 
-        onPress={() => setThresholdsVisible(true)}
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={styles.actionRow}>
+          <View style={styles.actionTextContainer}>
+            <Text style={[styles.actionText, { color: theme.colors.text }]}>Currency Display</Text>
+            <Text style={[styles.actionSubtext, { color: theme.colors.mutedText }]}>EUR = USD × 0.85 × 0.85</Text>
+          </View>
+          <View style={styles.toggleGroup}>
+            <TouchableOpacity
+              onPress={() => setCurrency('USD')}
+              style={[
+                styles.togglePill,
+                { borderColor: theme.colors.border, backgroundColor: currency === 'USD' ? theme.colors.primary : 'transparent' },
+              ]}
+            >
+              <Text style={[styles.togglePillText, { color: currency === 'USD' ? '#fff' : theme.colors.text }]}>USD</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setCurrency('EUR')}
+              style={[
+                styles.togglePill,
+                { borderColor: theme.colors.border, backgroundColor: currency === 'EUR' ? theme.colors.primary : 'transparent' },
+              ]}
+            >
+              <Text style={[styles.togglePillText, { color: currency === 'EUR' ? '#fff' : theme.colors.text }]}>EUR</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity onPress={() => setThresholdsVisible(true)}
+        style={[styles.actionBtn, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
       >
         <Text style={[styles.actionText, { color: theme.colors.text }]}>Count as Collected</Text>
         <Text style={[styles.actionSubtext, { color: theme.colors.mutedText }]}>Set rarity thresholds</Text>
       </TouchableOpacity>
+
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+      >
+        <View style={styles.actionRow}>
+          <View style={styles.actionTextContainer}>
+            <Text style={[styles.actionText, { color: theme.colors.text }]}>Visible Card Types</Text>
+            <Text style={[styles.actionSubtext, { color: theme.colors.mutedText }]}>Hide or show rarities globally</Text>
+          </View>
+          <View style={styles.toggleGroup}>
+            <TouchableOpacity onPress={() => setAll(true)} style={[styles.togglePill, { borderColor: theme.colors.border }]}
+            >
+              <Text style={[styles.togglePillText, { color: theme.colors.text }]}>All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setAll(false)} style={[styles.togglePill, { borderColor: theme.colors.border }]}
+            >
+              <Text style={[styles.togglePillText, { color: theme.colors.text }]}>None</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {RARITY_OPTIONS.map(rarity => (
+          <View key={rarity} style={[styles.toggleRow, { borderBottomColor: theme.colors.border }]}
+          >
+            <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>{rarity}</Text>
+            <Switch
+              value={enabledRarities[rarity] !== false}
+              onValueChange={(val) => setRarityEnabled(rarity, val)}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={enabledRarities[rarity] !== false ? theme.colors.accent : theme.colors.mutedText}
+            />
+          </View>
+        ))}
+      </View>
 
       <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
         <Text style={styles.logoutText}>Logout</Text>
@@ -115,7 +182,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             </Text>
 
             <ScrollView style={styles.thresholdsList}>
-              {RARITIES.map(rarity => (
+              {RARITY_OPTIONS.map(rarity => (
                 <View key={rarity} style={[styles.thresholdRow, { borderBottomColor: theme.colors.border }]}>
                   <Text style={[styles.rarityLabel, { color: theme.colors.text }]}>{rarity}</Text>
                   <TextInput
@@ -149,10 +216,8 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 18,
+  contentContainer: {
+    paddingBottom: 100,
   },
   card: {
     borderRadius: 12,
@@ -169,7 +234,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionBtn: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 12,
     borderWidth: 1,
@@ -183,6 +248,31 @@ const styles = StyleSheet.create({
   actionTextContainer: {
     flex: 1,
   },
+  toggleGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  togglePill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  togglePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
   actionText: {
     fontSize: 16,
     fontWeight: '600',
@@ -193,7 +283,7 @@ const styles = StyleSheet.create({
   },
   logoutBtn: {
     backgroundColor: '#c0392b',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 18,
@@ -237,9 +327,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   thresholdInput: {
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 8,
     width: 60,
     textAlign: 'center',
     borderWidth: 1,

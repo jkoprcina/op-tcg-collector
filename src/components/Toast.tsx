@@ -1,4 +1,4 @@
-import React, { useState, useCallback, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { View, Text, StyleSheet, Animated, Pressable } from 'react-native';
 import { getTheme } from '../theme';
 import { useTheme } from '../context/ThemeContext';
@@ -29,7 +29,7 @@ export const useToast = () => {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const show = useCallback((message: string, type: ToastType = 'info', duration = 3000) => {
+  const show = (message: string, type: ToastType = 'info', duration = 3000) => {
     const id = Math.random().toString(36);
     const toast: ToastMessage = { id, message, type, duration };
     
@@ -40,11 +40,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         setToasts(prev => prev.filter(t => t.id !== id));
       }, duration);
     }
-  }, []);
+  };
 
-  const remove = useCallback((id: string) => {
+  const remove = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  };
 
   return (
     <ToastContext.Provider value={{ show }}>
@@ -62,7 +62,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Toast({ id, message, type, duration, onDismiss }: ToastMessage & { onDismiss: () => void }) {
+export function Toast({ id, message, type, duration, onDismiss }: ToastMessage & { onDismiss: () => void }) {
   const [opacity] = useState(new Animated.Value(0));
   const { mode } = useTheme();
   const theme = getTheme(mode);

@@ -7,7 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import type { RootStackParamList } from '../navigation';
 
-export type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
+type LoginRouteName = 'Login' | 'login';
+export type LoginScreenProps = NativeStackScreenProps<RootStackParamList, LoginRouteName>;
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { mode } = useTheme();
@@ -30,7 +31,6 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       await login(email.trim(), password);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to login';
-      console.error('Login error:', e);
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -100,16 +100,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   input: {
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
     fontSize: 14,
   },
   primaryBtn: {
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
+    minHeight: 48,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -133,10 +134,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   passwordInput: {
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     paddingRight: 40,
     fontSize: 14,
   },

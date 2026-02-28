@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,6 +23,7 @@ import { useCollectedCards } from '../hooks/useCollectedCards';
 import { useTheme } from '../context/ThemeContext';
 import { getTheme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { RARITY_OPTIONS, isAlternateArtCard, isMangaCard, getRarityKeyForCard } from '../context/CardFilterContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SetDetail'>;
 
@@ -42,6 +44,7 @@ type FilterState = {
   selectedColor: string | null;
   sortType: SortType;
   showCollected: boolean;
+  selectedRarities: Record<string, boolean>;
 };
 
 export function SetDetailScreen({ route }: Props) {
@@ -57,34 +60,42 @@ export function SetDetailScreen({ route }: Props) {
   const [sortType, setSortType] = useState<SortType>('id');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [showCollected, setShowCollected] = useState(true);
+  const [selectedRarities, setSelectedRarities] = useState<Record<string, boolean>>(
+    RARITY_OPTIONS.reduce((acc, r) => ({ ...acc, [r]: true }), {})
+  );
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
   const { getCount, collected } = useCollectedCards();
   const toast = useToast();
 
   // Load thresholds on mount and when screen gains focus
-  const loadThresholds = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setThresholds(JSON.parse(raw));
-      } else {
-        // Default: 1 card needed
-        setThresholds({});
-      }
-    } catch {}
-  }, []);
+  const loadThresholds = useMemo(
+    () => async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          setThresholds(JSON.parse(raw));
+        } else {
+          // Default: 1 card needed
+          setThresholds({});
+        }
+      } catch {}
+    },
+    []
+  );
 
   useEffect(() => {
     loadThresholds();
   }, [loadThresholds]);
 
   useFocusEffect(
-    useCallback(() => {
-      loadThresholds();
-    }, [loadThresholds])
+    useMemo(
+      () => () => {
+        loadThresholds();
+      },
+      [loadThresholds]
+    )
   );
 
-  // Load saved filters for this set
   useEffect(() => {
     (async () => {
       try {
@@ -95,6 +106,14 @@ export function SetDetailScreen({ route }: Props) {
           setSelectedColor(saved.selectedColor);
           setSortType(saved.sortType);
           setShowCollected(saved.showCollected);
+          if (saved.selectedRarities) {
+            // Merge saved rarities with current RARITY_OPTIONS to include new categories like SP
+            const mergedRarities = RARITY_OPTIONS.reduce((acc, r) => {
+              acc[r] = saved.selectedRarities[r] !== false;
+              return acc;
+            }, {} as Record<string, boolean>);
+            setSelectedRarities(mergedRarities);
+          }
         }
       } catch {}
     })();
@@ -109,16 +128,19 @@ export function SetDetailScreen({ route }: Props) {
           selectedColor,
           sortType,
           showCollected,
+          selectedRarities,
         };
         await AsyncStorage.setItem(key, JSON.stringify(state));
       } catch {}
     })();
-  }, [setId, selectedColor, sortType, showCollected]);
+  }, [setId, selectedColor, sortType, showCollected, selectedRarities]);
 
   const loadCards = async () => {
     try {
       const data = await getCardsInSet(setId);
       setCards(data);
+      
+
     } catch (err) {
       toast.show('Failed to load cards', 'error');
     }
@@ -147,24 +169,20 @@ export function SetDetailScreen({ route }: Props) {
 
   // Filter and sort cards
   const filteredCards = useMemo(() => {
-    // Normalize rarity from API values to Settings keys
-    // Alternative Art takes precedence if present
+    // Normalize rarity codes to full names
     const normalizeRarity = (r: string | null | undefined): string => {
       const s = (r || '').trim().toLowerCase();
       
-      // Check for Alternative Art first (takes precedence)
-      if (s.includes('alt') || s.includes('alternative art') || s === 'aa') {
-        return 'Alternative Art';
-      }
-      
-      // Then check other rarities
-      if (s === 'c' || s === 'common') return 'Common';
-      if (s === 'uc' || s === 'uncommon') return 'Uncommon';
-      if (s === 'r' || s === 'rare') return 'Rare';
-      if (s === 'sr' || s === 'super rare') return 'Super Rare';
-      if (s === 'sec' || s === 'secret rare') return 'Secret Rare';
+      // Handle short codes from database
+      if (s === 'c') return 'Common';
+      if (s === 'uc') return 'Uncommon';
+      if (s === 'r') return 'Rare';
+      if (s === 'sr') return 'Super Rare';
+      if (s === 'sec') return 'Secret Rare';
       if (s === 'l' || s === 'leader') return 'Leader';
-      if (s === 'sp' || s === 'special') return 'Special';
+      if (s === 'tr') return 'Treasure Rare';
+      if (s === 'pr') return 'Parallel Rare';
+      
       return 'None';
     };
 
@@ -204,16 +222,20 @@ export function SetDetailScreen({ route }: Props) {
       const matchesColor =
         !selectedColor || colorTokens.includes(selectedColor.toLowerCase());
 
+      // Check rarity filter - use getRarityKeyForCard to properly categorize all card types
+      const rarityKey = getRarityKeyForCard(card);
+      const matchesRarity = selectedRarities[rarityKey] !== false;
+
       // Check if card is collected based on normalized threshold
       const cardCount = collected[card.card_image_id] || 0;
-      const rarityKey = normalizeRarity(card.rarity);
       const threshold = thresholds[rarityKey] ?? 1;
       const isCardCollected = cardCount >= threshold;
 
-      // When showCollected is FALSE, hide collected cards
+      // When showCollected is TRUE, show all cards
+      // When showCollected is FALSE, hide collected cards (show only missing)
       const matchesCollected = showCollected || !isCardCollected;
 
-      return matchesSearch && matchesColor && matchesCollected;
+      return matchesSearch && matchesColor && matchesRarity && matchesCollected;
     });
 
     // Sort
@@ -234,11 +256,16 @@ export function SetDetailScreen({ route }: Props) {
     });
 
     return sorted;
-  }, [cards, debouncedSearch, selectedColor, sortType, showCollected, thresholds, collected]);
+  }, [cards, debouncedSearch, selectedColor, sortType, showCollected, thresholds, collected, selectedRarities]);
 
-  const renderCard = useCallback(({ item }: { item: Card }) => (
-    <CardItem card={item} />
-  ), []);
+  const renderCard = useMemo(
+    () => ({ item }: { item: Card }) => (
+      <View style={styles.gridItem}>
+        <CardItem card={item} />
+      </View>
+    ),
+    []
+  );
 
   if (loading) {
     return (
@@ -259,17 +286,34 @@ export function SetDetailScreen({ route }: Props) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
       {/* Results count */}
-      <Text style={[styles.resultCount, { color: theme.colors.mutedText, backgroundColor: theme.colors.surface }]}>
-        {filteredCards.length} of {cards.length} cards
-      </Text>
+      <View style={[styles.headerBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        <Text style={[styles.resultCount, { color: theme.colors.mutedText }]}>
+          {filteredCards.length} of {cards.length} cards
+        </Text>
+        
+        <TouchableOpacity
+          style={[styles.filterBarButton, { backgroundColor: theme.colors.chip, borderColor: theme.colors.border }]}
+          onPress={() => setFiltersVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="funnel" size={18} color={theme.colors.primary} />
+          <Text style={[styles.filterBarText, { color: theme.colors.text }]}>
+            {(() => {
+              const activeCount = (selectedColor ? 1 : 0) + (!showCollected ? 1 : 0) + (searchText.trim() ? 1 : 0);
+              return activeCount > 0 ? `${activeCount} Filter${activeCount > 1 ? 's' : ''}` : 'Filters';
+            })()}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedText} />
+        </TouchableOpacity>
+      </View>
 
       {/* Cards Grid */}
       <FlatList
         data={filteredCards}
         keyExtractor={item => item.card_image_id}
-        numColumns={2}
+        numColumns={3}
         renderItem={renderCard}
         contentContainerStyle={styles.grid}
         extraData={collected}
@@ -282,15 +326,6 @@ export function SetDetailScreen({ route }: Props) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       />
-
-      {/* Floating Filters Button */}
-      <TouchableOpacity
-        style={styles.filtersFab}
-        onPress={() => setFiltersVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="options-outline" size={24} color="#fff" />
-      </TouchableOpacity>
 
       {/* Filters Modal (Modern sheet) */}
       <Modal visible={filtersVisible} transparent animationType="fade">
@@ -338,6 +373,26 @@ export function SetDetailScreen({ route }: Props) {
                   }
                 >
                   <Text style={[styles.colorBtnText, { color: selectedColor === color ? '#fff' : theme.colors.text }]}>{color}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Rarity Filter */}
+            <Text style={[styles.sectionLabel, { color: theme.colors.mutedText }]}>Rarity</Text>
+            <View style={styles.rarityGrid}>
+              {RARITY_OPTIONS.map(rarity => (
+                <TouchableOpacity
+                  key={rarity}
+                  style={[
+                    styles.rarityBtn,
+                    { borderColor: theme.colors.border, backgroundColor: theme.colors.chip },
+                    selectedRarities[rarity] !== false && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+                  ]}
+                  onPress={() => setSelectedRarities(prev => ({ ...prev, [rarity]: !prev[rarity] }))}
+                >
+                  <Text style={[styles.rarityBtnText, { color: selectedRarities[rarity] !== false ? '#fff' : theme.colors.text }]}>
+                    {rarity}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -396,6 +451,7 @@ export function SetDetailScreen({ route }: Props) {
                 setSelectedColor(null);
                 setSortType('id');
                 setShowCollected(true);
+                setSelectedRarities(RARITY_OPTIONS.reduce((acc, r) => ({ ...acc, [r]: true }), {}));
               }}
             >
               <Text style={[styles.resetBtnText, { color: theme.colors.text }]}>Reset Filters</Text>
@@ -403,13 +459,34 @@ export function SetDetailScreen({ route }: Props) {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  filterBarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  filterBarText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   center: {
     flex: 1,
@@ -478,6 +555,11 @@ const styles = StyleSheet.create({
   },
   grid: {
     padding: 14,
+    paddingBottom: 100,
+  },
+  gridItem: {
+    width: '33.3333%',
+    alignSelf: 'flex-start',
   },
   filtersFab: {
     position: 'absolute',
@@ -544,6 +626,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 8,
     gap: 6,
+  },
+  rarityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    gap: 6,
+  },
+  rarityBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  rarityBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   resetBtn: {
     marginTop: 12,

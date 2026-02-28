@@ -6,6 +6,7 @@ import type { Card } from '../types';
 import { useCollections } from '../context/CollectionsContext';
 import { hapticFeedback } from '../utils/haptics';
 import { useToast } from './Toast';
+import { useCollectedCards } from '../hooks/useCollectedCards';
 
 export type AddToCollectionModalProps = {
   card: Card;
@@ -17,28 +18,41 @@ export function AddToCollectionModal({ card, visible, onClose }: AddToCollection
   const { mode } = useTheme();
   const theme = getTheme(mode);
   const { collections, addCardToCollection, createCollection, getCardCountInCollection } = useCollections();
+  const { getCount, lastError } = useCollectedCards();
   const [name, setName] = useState('');
   const toast = useToast();
 
   const addTo = async (collectionId: string) => {
-    const count = getCardCountInCollection(collectionId, card.card_image_id);
-    if (count > 0) {
-      toast.show(`Already have ${count} copy in this collection`, 'info', 2000);
+    try {
+      const count = getCardCountInCollection(collectionId, card.card_image_id);
+      if (count > 0) {
+        toast.show(`Already have ${count} copy in this binder`, 'info', 2000);
+      }
+      const collectedCount = getCount(card.card_image_id);
+      await addCardToCollection(collectionId, { ...card, collected_count: collectedCount });
+      await hapticFeedback.success();
+      toast.show('Card added!', 'success');
+      onClose();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to add card';
+      toast.show(`Error: ${errMsg}`, 'error', 4000);
     }
-    await addCardToCollection(collectionId, card);
-    await hapticFeedback.success();
-    toast.show('Card added!', 'success');
-    onClose();
   };
 
   const createAndAdd = async () => {
     if (!name.trim()) return;
-    const col = await createCollection(name.trim());
-    setName('');
-    await addCardToCollection(col.id, card);
-    await hapticFeedback.success();
-    toast.show(`Added to "${col.name}"`, 'success');
-    onClose();
+    try {
+      const col = await createCollection(name.trim());
+      setName('');
+      const collectedCount = getCount(card.card_image_id);
+      await addCardToCollection(col.id, { ...card, collected_count: collectedCount });
+      await hapticFeedback.success();
+      toast.show(`Added to "${col.name}"`, 'success');
+      onClose();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to create binder';
+      toast.show(`Error: ${errMsg}`, 'error', 4000);
+    }
   };
 
   return (
@@ -46,7 +60,7 @@ export function AddToCollectionModal({ card, visible, onClose }: AddToCollection
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Add to Collection</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Add to Binder</Text>
             <TouchableOpacity onPress={onClose}>
               <Text style={[styles.closeText, { color: theme.colors.primary }]}>Close</Text>
             </TouchableOpacity>
@@ -54,7 +68,7 @@ export function AddToCollectionModal({ card, visible, onClose }: AddToCollection
           <Text style={[styles.cardName, { color: theme.colors.text }]}>{card.card_name}</Text>
           <Text style={[styles.cardSub, { color: theme.colors.mutedText }]}>{card.card_set_id}</Text>
 
-          <Text style={[styles.section, { color: theme.colors.text }]}>Existing Collections</Text>
+          <Text style={[styles.section, { color: theme.colors.text }]}>Existing Binders</Text>
           <FlatList
             data={collections}
             keyExtractor={item => item.id}
@@ -64,14 +78,14 @@ export function AddToCollectionModal({ card, visible, onClose }: AddToCollection
                 <Text style={[styles.itemSub, { color: theme.colors.mutedText }]}>{item.cards.length} cards</Text>
               </TouchableOpacity>
             )}
-            ListEmptyComponent={<Text style={[styles.empty, { color: theme.colors.mutedText }]}>No collections yet</Text>}
+            ListEmptyComponent={<Text style={[styles.empty, { color: theme.colors.mutedText }]}>No binders yet</Text>}
           />
 
           <Text style={[styles.section, { color: theme.colors.text }]}>Create New</Text>
           <View style={styles.newRow}>
             <TextInput
               style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.text }]}
-              placeholder="Collection name"
+              placeholder="Binder name"
               placeholderTextColor={theme.colors.mutedText}
               value={name}
               onChangeText={setName}

@@ -8,7 +8,8 @@ import { useToast } from '../components';
 import { useTheme } from '../context/ThemeContext';
 import type { RootStackParamList } from '../navigation';
 
-export type RegisterScreenProps = NativeStackScreenProps<RootStackParamList, 'Register'>;
+type RegisterRouteName = 'Register' | 'register';
+export type RegisterScreenProps = NativeStackScreenProps<RootStackParamList, RegisterRouteName>;
 
 export function RegisterScreen({ navigation }: RegisterScreenProps) {
   const { mode } = useTheme();
@@ -49,7 +50,6 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
       }, 1500);
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to register';
-      console.error('Register error:', e);
       setError(errorMsg);
       toast.show(errorMsg, 'error');
     } finally {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -141,16 +141,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   input: {
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 12,
     fontSize: 14,
   },
   primaryBtn: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
+    minHeight: 48,
     alignItems: 'center',
     marginTop: 10,
   },
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingRight: 40,
     fontSize: 14,
   },

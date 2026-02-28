@@ -87,7 +87,6 @@ export async function getSets(): Promise<SetSummary[]> {
       name: set.set_name,
     }));
     
-    console.log('Fetched sets:', sets);
     setsListCache.set('all', sets);
     await setJSONCache('sets:all', sets);
     return sets;
@@ -117,15 +116,10 @@ export async function getCardsInSet(setId: string): Promise<Card[]> {
 
   try {
     const resp = await fetchWithRetry(`${BASE_URL}/sets/${setId}/`);
-    if (!resp.ok) {
-      console.warn(`Failed to fetch cards for set ${setId}, status: ${resp.status}`);
-      return [];
-    }
+    if (!resp.ok) return [];
     const data = (await resp.json()) as APICardsResponse | { value: APICardsResponse };
     
     const cards: Card[] = Array.isArray(data) ? data : (data.value || []);
-    
-    console.log(`Fetched ${cards.length} cards for set ${setId}`);
     
     // Cache the results
     setCache.set(setId, cards);
