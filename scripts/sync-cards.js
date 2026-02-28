@@ -12,10 +12,13 @@ const OPTCG_API_BASE = 'https://www.optcgapi.com/api';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://jkcykikfnbvytkfllmhv.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// List of known OPTCG sets
+// List of known OPTCG sets (main sets and extra boosters)
 const KNOWN_SETS = [
+  // Main sets
   'OP-01', 'OP-02', 'OP-03', 'OP-04', 'OP-05', 'OP-06', 'OP-07', 'OP-08',
-  'OP-09', 'OP-10', 'OP-11', 'OP-12', 'OP-13', 'OP-14'
+  'OP-09', 'OP-10', 'OP-11', 'OP-12', 'OP-13', 'OP-14',
+  // Extra boosters
+  'EB-01', 'EB-02', 'EB-03'
 ];
 
 if (!SUPABASE_KEY) {
