@@ -12,6 +12,12 @@ const OPTCG_API_BASE = 'https://www.optcgapi.com/api';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://jkcykikfnbvytkfllmhv.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// List of known OPTCG sets
+const KNOWN_SETS = [
+  'OP-01', 'OP-02', 'OP-03', 'OP-04', 'OP-05', 'OP-06', 'OP-07', 'OP-08',
+  'OP-09', 'OP-10', 'OP-11', 'OP-12', 'OP-13', 'OP-14'
+];
+
 if (!SUPABASE_KEY) {
   console.error('Error: SUPABASE_SERVICE_ROLE_KEY environment variable not set');
   process.exit(1);
@@ -38,8 +44,8 @@ function fetchJSON(url) {
 async function getSetsFromAPI() {
   try {
     console.log('Fetching sets from OPTCG API...');
-    const response = await fetchJSON(`${OPTCG_API_BASE}/sets`);
-    return response || [];
+    // The OPTCG API doesn't have a sets endpoint, so we use known sets
+    return KNOWN_SETS.map(setId => ({ id: setId }));
   } catch (err) {
     console.error('Failed to fetch sets:', err.message);
     return [];
@@ -48,7 +54,8 @@ async function getSetsFromAPI() {
 
 async function getCardsFromAPI(setId) {
   try {
-    const response = await fetchJSON(`${OPTCG_API_BASE}/cards?setId=${setId}`);
+    // API endpoint is /api/sets/{SET_ID}/
+    const response = await fetchJSON(`${OPTCG_API_BASE}/sets/${setId}/`);
     return response || [];
   } catch (err) {
     console.error(`Failed to fetch cards for set ${setId}:`, err.message);
@@ -58,22 +65,22 @@ async function getCardsFromAPI(setId) {
 
 async function normalizeCard(apiCard) {
   return {
-    card_image_id: apiCard.id || apiCard.card_image_id,
-    card_name: apiCard.name || apiCard.card_name,
-    card_set_id: apiCard.cardSetId || apiCard.card_set_id,
-    set_name: apiCard.setName || apiCard.set_name,
-    card_color: apiCard.color || apiCard.card_color || null,
+    card_image_id: apiCard.card_set_id || apiCard.id || apiCard.card_image_id,
+    card_name: apiCard.card_name || apiCard.name,
+    card_set_id: apiCard.card_set_id || apiCard.cardSetId || apiCard.set_id,
+    set_name: apiCard.set_name || apiCard.setName,
+    card_color: apiCard.card_color || apiCard.color || null,
     rarity: apiCard.rarity || null,
-    cost: apiCard.cost || null,
+    cost: apiCard.card_cost || apiCard.cost || null,
     attribute: apiCard.attribute || null,
     power: apiCard.power || null,
     counter: apiCard.counter || null,
-    card_type: apiCard.type || apiCard.card_type || null,
-    card_effect: apiCard.effect || apiCard.card_effect || null,
-    card_trigger: apiCard.trigger || apiCard.card_trigger || null,
-    card_image: apiCard.image || apiCard.card_image || null,
-    market_price: apiCard.price?.market || apiCard.market_price || null,
-    cardmarket_price: apiCard.price?.cardmarket || apiCard.cardmarket_price || null,
+    card_type: apiCard.card_type || apiCard.type || null,
+    card_effect: apiCard.card_text || apiCard.card_effect || apiCard.effect || null,
+    card_trigger: apiCard.card_trigger || apiCard.trigger || null,
+    card_image: apiCard.card_images || apiCard.image || apiCard.card_image || null,
+    market_price: apiCard.market_price || null,
+    cardmarket_price: apiCard.cardmarket_price || null,
   };
 }
 
