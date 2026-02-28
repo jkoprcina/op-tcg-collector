@@ -110,6 +110,37 @@ async function syncCards() {
     const sets = await getSetsFromAPI();
     console.log(`Fetched ${sets.length} sets from API`);
 
+    // Upsert sets into sets table
+    const setsToUpsert = [];
+    for (const set of sets) {
+      const setId = set.id;
+      // Extract set name from first card if available
+      const cards = await getCardsFromAPI(setId);
+      if (cards.length > 0) {
+        setsToUpsert.push({
+          id: setId,
+          name: cards[0].set_name || setId,
+          release_date: null,
+          card_count: cards.length,
+        });
+      }
+    }
+
+    if (setsToUpsert.length > 0) {
+      const { error: setsError } = await supabase
+        .from('sets')
+        .upsert(setsToUpsert, {
+          onConflict: 'id',
+          ignoreDuplicates: false,
+        });
+
+      if (setsError) {
+        console.error('Error upserting sets:', setsError.message);
+      } else {
+        console.log(`Upserted ${setsToUpsert.length} sets`);
+      }
+    }
+
     for (const set of sets) {
       const setId = set.id || set.set_id;
       console.log(`Processing set ${setId}...`);
