@@ -117,8 +117,10 @@ async function syncCards() {
       // Extract set name from first card if available
       const cards = await getCardsFromAPI(setId);
       if (cards.length > 0) {
+        // Extract normalized set ID from first card's card_set_id (e.g., "OP08-067" -> "OP08")
+        const normalizedSetId = cards[0].card_set_id.split('-')[0];
         setsToUpsert.push({
-          id: setId,
+          id: normalizedSetId,  // Use normalized format (OP08, not OP-08)
           name: cards[0].set_name || setId,
           release_date: null,
           card_count: cards.length,
